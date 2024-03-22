@@ -12,34 +12,38 @@
 int main(int argc, char *argv[])
 {
     char *addr;
-    int fd;
+    int input, output;
     struct stat sb;
     size_t length;
     ssize_t s;
 
     //mmap to extract text to encode
 
-    fd = open(argv[1], O_RDONLY);
-    if (fd == -1)
+    input = open(argv[1], O_RDONLY);
+    if (input == -1)
     {
-        handle_error("open");
+        handle_error("open input");
+    }
+
+    output = open(argv[3], O_CREAT | O_RDWR);
+    if (input == -1)
+    {
+        handle_error("open output");
     }
         
-    if (fstat(fd, &sb) == -1)           
+    if (fstat(input, &sb) == -1)           
     {
         handle_error("fstat");
     }
 
     length = sb.st_size;
 
-    addr = mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
+    addr = mmap(NULL, length, PROT_READ, MAP_PRIVATE, input, 0);
     
     if (addr == MAP_FAILED)
     {
         handle_error("mmap");
     }
-
-    printf("%s", addr);
 
     //encoding text
 
@@ -71,8 +75,11 @@ int main(int argc, char *argv[])
         printf("%c%d", encstr[i], encstr[i+1]);
     }
 
+    dup2(output, STDOUT_FILENO);
+
     munmap(addr, length);
-    close(fd);
+    close(input);
+    close(output);
 
     exit(EXIT_SUCCESS);
 }
