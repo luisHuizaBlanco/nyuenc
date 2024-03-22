@@ -20,3 +20,6 @@ nyuenc-autograder/x86_64/nyuenc
 file.txt
 file.enc
 .vscode/settings.json
+test/a.out
+test/print.c
+test/unsigned.c

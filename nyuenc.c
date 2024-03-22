@@ -12,12 +12,12 @@
 int main(int argc, char *argv[])
 {
     char *addr;
-    char letter = "";
-    int count = 0;
     int fd;
     struct stat sb;
     size_t length;
     ssize_t s;
+
+    //mmap to extract text to encode
 
     fd = open(argv[1], O_RDONLY);
     if (fd == -1)
@@ -41,24 +41,34 @@ int main(int argc, char *argv[])
 
     printf("%s", addr);
 
-    for(int i = 0; i < length; i++)
+    //encoding text
+
+    unsigned char encstr[1000];
+    int addrpos = 0;
+    int encpos = 0;
+    unsigned char charcount = 1;
+
+    while (addr[addrpos] != '\0')
     {
-        if((strcmp(addr[i], letter)) != 0)
+        if(addr[addrpos] == addr[addrpos + 1])
         {
-            if(count > 0)
-            {
-                //for saving each letter and count
-            }
-
-            letter = strdup(addr[i]);
-
-            count = 1;
+            charcount++;
         }
         else
         {
-            count++;
+            encstr[encpos++] = addr[addrpos];
+
+            encstr[encpos++] = charcount;
+
+            charcount = 1;
         }
 
+        addrpos++;
+    }
+
+    for(int i = 0; i < encpos; i += 2) 
+    {
+        printf("%c%d", encstr[i], encstr[i+1]);
     }
 
     munmap(addr, length);
