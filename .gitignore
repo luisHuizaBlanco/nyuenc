@@ -23,3 +23,4 @@ file.enc
 test/a.out
 test/print.c
 test/unsigned.c
+test/e

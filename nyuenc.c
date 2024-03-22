@@ -19,16 +19,15 @@ int main(int argc, char *argv[])
 
     //mmap to extract text to encode
 
+    if(argc < 2)
+    {
+        return 0;
+    }
+
     input = open(argv[1], O_RDONLY);
     if (input == -1)
     {
         handle_error("open input");
-    }
-
-    output = open(argv[3], O_CREAT | O_RDWR);
-    if (input == -1)
-    {
-        handle_error("open output");
     }
         
     if (fstat(input, &sb) == -1)           
@@ -47,10 +46,14 @@ int main(int argc, char *argv[])
 
     //encoding text
 
-    unsigned char encstr[1000];
+    unsigned char *encstr = malloc(length * 2);
     int addrpos = 0;
     int encpos = 0;
     unsigned char charcount = 1;
+
+    if (encstr == NULL) {
+        handle_error("malloc");
+    }
 
     while (addr[addrpos] != '\0')
     {
@@ -70,16 +73,13 @@ int main(int argc, char *argv[])
         addrpos++;
     }
 
-    for(int i = 0; i < encpos; i += 2) 
-    {
-        printf("%c%d", encstr[i], encstr[i+1]);
-    }
+    //writing the file
 
-    dup2(output, STDOUT_FILENO);
+    fwrite(encstr, 1, sizeof(encstr), stdout);
 
     munmap(addr, length);
     close(input);
     close(output);
+    free(encstr);
 
-    exit(EXIT_SUCCESS);
 }
