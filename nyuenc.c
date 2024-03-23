@@ -12,50 +12,54 @@
 int main(int argc, char *argv[])
 {
     char *addr;
-    int input, output;
+    int input;
     struct stat sb;
     size_t length;
-    ssize_t s;
 
-    //mmap to extract text to encode
+    //handling arguments
 
+    //ensuring minimum arguments to run
     if(argc < 2)
     {
         return 0;
     }
 
+    //obtaining files for encoding
+
     input = open(argv[1], O_RDONLY);
     if (input == -1)
     {
-        handle_error("open input");
+        exit(0);
     }
+
+    //mmaping to get segments of the file
         
     if (fstat(input, &sb) == -1)           
     {
-        handle_error("fstat");
+        exit(0);
     }
 
     length = sb.st_size;
 
     addr = mmap(NULL, length, PROT_READ, MAP_PRIVATE, input, 0);
-    
+
     if (addr == MAP_FAILED)
     {
-        handle_error("mmap");
+        exit(0);
     }
 
     //encoding text
 
     unsigned char *encstr = malloc(length * 2);
-    int addrpos = 0;
-    int encpos = 0;
+    size_t addrpos = 0;
+    size_t encpos = 0;
     unsigned char charcount = 1;
 
     if (encstr == NULL) {
-        handle_error("malloc");
+        exit(0);
     }
 
-    while (addr[addrpos] != '\0')
+    while (addrpos < length)
     {
         if(addr[addrpos] == addr[addrpos + 1])
         {
@@ -75,11 +79,10 @@ int main(int argc, char *argv[])
 
     //writing the file
 
-    fwrite(encstr, 1, sizeof(encstr), stdout);
+    fwrite(encstr, 1, encpos, stdout);
 
     munmap(addr, length);
     close(input);
-    close(output);
     free(encstr);
 
 }
