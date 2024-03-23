@@ -5,9 +5,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#define handle_error(msg) \
-    do { perror(msg); exit(EXIT_FAILURE); } while (0)
-
 
 int main(int argc, char *argv[])
 {
@@ -15,6 +12,7 @@ int main(int argc, char *argv[])
     int input;
     struct stat sb;
     size_t length;
+    
 
     //handling arguments
 
@@ -24,65 +22,97 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    //obtaining files for encoding
+    //obtaining num of files for encoding
+    size_t filenum = argc - 1;
 
-    input = open(argv[1], O_RDONLY);
-    if (input == -1)
+    unsigned char **encstr = malloc(filenum * sizeof(unsigned char *));
+    size_t *enclength = malloc(filenum * sizeof(size_t));
+
+    for(size_t i = 0; i < filenum; i++)
     {
-        exit(0);
-    }
+        input = open(argv[i + 1], O_RDONLY);
+        if (input == -1)
+        {
+            exit(0);
+        }
 
-    //mmaping to get segments of the file
+        //mmaping to get segments of the file
+            
+        if (fstat(input, &sb) == -1)           
+        {
+            exit(0);
+        }
+
+        length = sb.st_size;
+
+        addr = mmap(NULL, length, PROT_READ, MAP_PRIVATE, input, 0);
+
+        if (addr == MAP_FAILED)
+        {
+            exit(0);
+        }
+
+        //encoding text
         
-    if (fstat(input, &sb) == -1)           
-    {
-        exit(0);
-    }
+        encstr[i] = malloc(length * 2);
+        size_t addrpos = 0;
+        size_t encpos = 0;
+        unsigned char charcount = 1;
 
-    length = sb.st_size;
-
-    addr = mmap(NULL, length, PROT_READ, MAP_PRIVATE, input, 0);
-
-    if (addr == MAP_FAILED)
-    {
-        exit(0);
-    }
-
-    //encoding text
-
-    unsigned char *encstr = malloc(length * 2);
-    size_t addrpos = 0;
-    size_t encpos = 0;
-    unsigned char charcount = 1;
-
-    if (encstr == NULL) {
-        exit(0);
-    }
-
-    while (addrpos < length)
-    {
-        if(addr[addrpos] == addr[addrpos + 1])
-        {
-            charcount++;
-        }
-        else
-        {
-            encstr[encpos++] = addr[addrpos];
-
-            encstr[encpos++] = charcount;
-
-            charcount = 1;
+        if (encstr[i] == NULL) {
+            exit(0);
         }
 
-        addrpos++;
+        while (addrpos < length - 1)
+        {
+            if(addr[addrpos] == addr[addrpos + 1])
+            {
+                charcount++;
+                
+            }
+            else
+            {
+                encstr[i][encpos++] = addr[addrpos];
+
+                encstr[i][encpos++] = charcount;
+
+                charcount = 1;
+            }
+
+            addrpos++;
+        }
+
+        encstr[i][encpos++] = addr[addrpos];
+
+        encstr[i][encpos++] = charcount;
+
+        enclength[i] = encpos;
+
+        munmap(addr, length);
+        close(input);
     }
 
     //writing the file
 
-    fwrite(encstr, 1, encpos, stdout);
+    for(size_t i = 0; i < filenum; i++)
+    {
+        if(i < filenum - 1)
+        {
+            if(encstr[i][enclength[i] - 2] == encstr[i + 1][0])
+            {
+                encstr[i+1][1] = encstr[i+1][1] + encstr[i][enclength[i] - 1];
 
-    munmap(addr, length);
-    close(input);
+                enclength[i] -= 2;
+
+            }
+        }
+
+        fwrite(encstr[i], 1, enclength[i], stdout);
+        free(encstr[i]);
+        
+    }
+
     free(encstr);
-
+    free(enclength);
+    
 }
