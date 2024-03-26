@@ -12,7 +12,6 @@ int main(int argc, char *argv[])
     int input;
     struct stat sb;
     size_t length;
-    
 
     //handling arguments
 
@@ -25,6 +24,7 @@ int main(int argc, char *argv[])
     //obtaining num of files for encoding
     size_t filenum = argc - 1;
 
+    //setting up memory for storing the encoded files, and the length of each
     unsigned char **encstr = malloc(filenum * sizeof(unsigned char *));
     size_t *enclength = malloc(filenum * sizeof(size_t));
 
@@ -53,7 +53,6 @@ int main(int argc, char *argv[])
         }
 
         //encoding text
-        
         encstr[i] = malloc(length * 2);
         size_t addrpos = 0;
         size_t encpos = 0;
@@ -67,11 +66,13 @@ int main(int argc, char *argv[])
         {
             if(addr[addrpos] == addr[addrpos + 1])
             {
+                //if the current character is the same as the following, add 1 to charcount
                 charcount++;
                 
             }
             else
             {
+                //we add the current character to the encoded array and the counter next to it
                 encstr[i][encpos++] = addr[addrpos];
 
                 encstr[i][encpos++] = charcount;
@@ -96,12 +97,16 @@ int main(int argc, char *argv[])
 
     for(size_t i = 0; i < filenum; i++)
     {
+        //if this isnt the last file
         if(i < filenum - 1)
         {
+            //if the last character of the current file and the next one match
             if(encstr[i][enclength[i] - 2] == encstr[i + 1][0])
             {
+                //we increase the count of the next files first character
                 encstr[i+1][1] = encstr[i+1][1] + encstr[i][enclength[i] - 1];
 
+                //and we remove the last two of the current file before printing
                 enclength[i] -= 2;
 
             }

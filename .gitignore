@@ -37,3 +37,6 @@ file2.enc
 fil.enc
 fi.enc
 fi2.enc
+test/strace
+test/threads
+test/threads.c
