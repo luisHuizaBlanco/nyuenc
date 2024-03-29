@@ -40,3 +40,8 @@ fi2.enc
 test/strace
 test/threads
 test/threads.c
+f.enc
+f2.enc
+test/myopt.c
+test/testopt
+test/testopt.c
