@@ -45,3 +45,10 @@ f2.enc
 test/myopt.c
 test/testopt
 test/testopt.c
+fm.enc
+test/memcpy.c
+test/mod.c
+sf.enc
+test/sf.enc
+test/test.c
+fragtest.txt
