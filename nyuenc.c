@@ -12,10 +12,6 @@ pthread_cond_t buffFull, buffEmpty;
 
 size_t top = 0;
 
-size_t head = 0;
-
-size_t tail = 0;
-
 size_t storage_count = 0;
 
 int encoding_complete = 0;
@@ -35,13 +31,15 @@ struct fragment frag_buffer[1000];
 
 struct fragment encoded_storage[263000];
 
+int storage_tracker[263000] = {0};
+
 void addfragment(size_t length, unsigned char *filetext, size_t order)
 {
     pthread_mutex_lock(&mutexBuffer);
 
     while(top > 999)
     {
-        //for space in the buffer
+        //wait for space in the buffer
         pthread_cond_wait(&buffFull, &mutexBuffer);
 
     }
@@ -67,12 +65,13 @@ struct fragment removefragment()
 
     while(top < 1)
     {
-        if(encoding_complete == 1)
+        if(totalfrags == storage_count)
         {
+            
             pthread_cond_broadcast(&buffEmpty);
-
             pthread_mutex_unlock(&mutexBuffer);
 
+            
             pthread_exit(0);
         }
         
@@ -101,6 +100,8 @@ void store_encodedfragment(struct fragment encfragment)
 
     pthread_mutex_lock(&mutexStorage);
     encoded_storage[encfragment.order] = encfragment;
+
+    storage_tracker[encfragment.order] = 1;
 
     storage_count++;
     pthread_mutex_unlock(&mutexStorage);
@@ -154,13 +155,15 @@ void *encoder_thread()
 
     while(1)
     {
+        
         buffer_frag = removefragment();
-
+        
         enc_frag.order = buffer_frag.order;
 
         encoding(buffer_frag.length, buffer_frag.frag, &enc_frag.frag, &enc_frag.length);
-
+        
         store_encodedfragment(enc_frag);
+        
     }
 
     return NULL;
@@ -216,28 +219,13 @@ int main(int argc, char *argv[])
         //get number of files to encode
         size_t filenum = argc - 3;
 
-        size_t totalfrags = 0, fragcount = 0;
+        size_t fragcount = 0;
 
         size_t fragorder = 0;
 
         unsigned char **filetext = malloc(filenum * sizeof(unsigned char *));
         size_t *length = malloc(filenum * sizeof(size_t));
-
-        //setting up and deploying the encoder threads
-        pthread_t th[thread_num];
-
-        pthread_mutex_init(&mutexBuffer, NULL);
-        pthread_mutex_init(&mutexStorage, NULL);
-        pthread_cond_init(&buffFull, NULL);
-        pthread_cond_init(&buffEmpty, NULL);
-
-
-        for(size_t i = 0; i < thread_num; i++)
-        {
-            pthread_create(&th[i], NULL, &encoder_thread, NULL);
-
-        }
-
+        size_t *frags = malloc(filenum * sizeof(size_t));
     
         for(size_t i = 0; i < filenum; i++)
         {
@@ -287,50 +275,119 @@ int main(int argc, char *argv[])
                 exit(0);
             }
 
-            //track current spot of the file
-            size_t fileleft = length[i];
+            frags[i] = fragcount;
 
-            unsigned char *fragtext;
+            //we changed this so now this stored everything that we need to fragment and then encode
 
-            //start making fragments to add to the buffer
-            for(size_t j = 0; j < fragcount; j++)
+            close(file);
+        }
+
+
+        //setting up and deploying the encoder threads
+        pthread_t th[thread_num];
+
+        pthread_mutex_init(&mutexBuffer, NULL);
+        pthread_mutex_init(&mutexStorage, NULL);
+        pthread_cond_init(&buffFull, NULL);
+        pthread_cond_init(&buffEmpty, NULL);
+
+
+        for(size_t i = 0; i < thread_num; i++)
+        {
+            pthread_create(&th[i], NULL, &encoder_thread, NULL);
+
+        }
+
+        size_t fileleft;
+
+        unsigned char *fragtext;
+
+        size_t current_file = 0, current_frag = 0, encoded = 0, fragmented = 0;
+
+        fileleft = length[current_file];
+
+        //fragmenting files and writing them when added to the 
+
+        while(encoding_complete == 0)
+        {
+
+            if(fragmented < totalfrags)
             {
                 if(fileleft > FRAG_SIZE)
                 {
                     fileleft -= FRAG_SIZE;
-
-                    fragtext = filetext[i] + (j * FRAG_SIZE);
-
+                    fragtext = filetext[current_file] + (current_frag * FRAG_SIZE);
                     addfragment(FRAG_SIZE, fragtext, fragorder);
-
                     fragorder++;
+                    fragmented++;
+                    current_frag++;
 
                 }
                 else
                 {
 
-                    fragtext = filetext[i] + (j * FRAG_SIZE);
-
-                    //fprintf(stderr, "%20s\n",fragtext);
-
+                    fragtext = filetext[current_file] + (current_frag * FRAG_SIZE);
                     addfragment(fileleft, fragtext, fragorder);
-
                     fragorder++;
+                    fragmented++;
+                    current_file++;
+                    fileleft = length[current_file];
+                    current_frag = 0;
 
                 }
+
             }
 
-            //if the buffer is full, wait so the encoder threads give room to continue
-            //continue through each file the same way
-            //count how many fragments have been made for the buffer
+            if(encoded < totalfrags)
+            {
+                pthread_mutex_lock(&mutexStorage);
 
-            close(file);
+                if(storage_tracker[encoded] == 1)
+                {
+
+                    if(encoded < totalfrags - 1)
+                    {
+
+                        if(storage_tracker[encoded + 1] == 1)
+                        {
+                            //if the last character of the current file and the next one match
+                            if(encoded_storage[encoded].frag[encoded_storage[encoded].length - 2] == encoded_storage[encoded + 1].frag[0])
+                            {
+                                //we increase the count of the next files first character
+                                encoded_storage[encoded + 1].frag[1] = encoded_storage[encoded + 1].frag[1] + encoded_storage[encoded].frag[encoded_storage[encoded].length - 1];
+
+                                //and we remove the last two of the current file before printing
+                                encoded_storage[encoded].length -= 2;
+
+                            }
+
+                            fwrite(encoded_storage[encoded].frag, 1, encoded_storage[encoded].length, stdout);
+
+                            encoded++;
+                        }
+                    }
+                    else
+                    {
+                        fwrite(encoded_storage[encoded].frag, 1, encoded_storage[encoded].length, stdout);
+
+                        encoded++;
+                    }
+
+                    
+                }
+
+                pthread_mutex_unlock(&mutexStorage);
+                
+            }
+
+            if(encoded == totalfrags && fragmented == totalfrags)
+            {
+                pthread_mutex_lock(&mutexBuffer);
+                encoding_complete = 1;
+                pthread_mutex_unlock(&mutexBuffer);
+            }
+
         }
-
-        //wait until totalfrags == storage_count
-        pthread_mutex_lock(&mutexBuffer);
-        encoding_complete = 1;
-        pthread_mutex_unlock(&mutexBuffer);
 
         //wait until the number of fragments in the encoded fragments matches the number of fragments made, then end the encoder threads
         for(size_t i = 0; i < thread_num; i++)
@@ -344,29 +401,6 @@ int main(int argc, char *argv[])
         pthread_cond_destroy(&buffFull);
         pthread_cond_destroy(&buffEmpty);
 
-        for(size_t i = 0; i < storage_count; i++)
-        {
-            //if this isnt the last fragment
-            if(i < storage_count - 1)
-            {
-                //if the last character of the current file and the next one match
-
-                if(encoded_storage[i].frag[encoded_storage[i].length - 2] == encoded_storage[i + 1].frag[0])
-                {
-                    //we increase the count of the next files first character
-                    encoded_storage[i + 1].frag[1] = encoded_storage[i + 1].frag[1] + encoded_storage[i].frag[encoded_storage[i].length - 1];
-
-                    //and we remove the last two of the current file before printing
-                    encoded_storage[i].length -= 2;
-
-                }
-
-            }
-
-            fwrite(encoded_storage[i].frag, 1, encoded_storage[i].length, stdout);
-            
-        }
-
         for(size_t i = 0; i < filenum; i++)
         {
             munmap(filetext[i], length[i]);
@@ -374,6 +408,7 @@ int main(int argc, char *argv[])
 
         free(filetext);
         free(length);
+        free(frags);
 
         //start writing the encoded fragments into stdout recursively, looking for the fragment with no prev address as the first one
 
