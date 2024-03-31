@@ -52,3 +52,7 @@ sf.enc
 test/sf.enc
 test/test.c
 fragtest.txt
+test/char.c
+sfteach.enc
+mf.enc
+mfteach.enc
