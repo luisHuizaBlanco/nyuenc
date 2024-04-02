@@ -155,13 +155,15 @@ void *encoder_thread()
 
     while(1)
     {
-        
+        //get from buffer
         buffer_frag = removefragment();
         
+        //copy fragment order
         enc_frag.order = buffer_frag.order;
 
         encoding(buffer_frag.length, buffer_frag.frag, &enc_frag.frag, &enc_frag.length);
         
+        //send to storage
         store_encodedfragment(enc_frag);
         
     }
@@ -306,13 +308,14 @@ int main(int argc, char *argv[])
 
         fileleft = length[current_file];
 
-        //fragmenting files and writing them when added to the 
+        //fragmenting files and writing them when added to the buffer
 
         while(encoding_complete == 0)
         {
-
+            //frags left to send to buffer
             if(fragmented < totalfrags)
             {
+                //if current amount of the current file is more than one fragment
                 if(fileleft > FRAG_SIZE)
                 {
                     fileleft -= FRAG_SIZE;
@@ -338,13 +341,15 @@ int main(int argc, char *argv[])
 
             }
 
+            //frags left to write
             if(encoded < totalfrags)
             {
                 pthread_mutex_lock(&mutexStorage);
 
+                //is the next fragment ready
                 if(storage_tracker[encoded] == 1)
                 {
-
+                    //if we are still not on the last fragment
                     if(encoded < totalfrags - 1)
                     {
 
@@ -389,18 +394,21 @@ int main(int argc, char *argv[])
 
         }
 
-        //wait until the number of fragments in the encoded fragments matches the number of fragments made, then end the encoder threads
+        //waiting for all threads to end
         for(size_t i = 0; i < thread_num; i++)
         {
             pthread_join(th[i], NULL);
 
         }
 
+        //closing all the mutex and conditional variables
         pthread_mutex_destroy(&mutexBuffer);
         pthread_mutex_destroy(&mutexStorage);
         pthread_cond_destroy(&buffFull);
         pthread_cond_destroy(&buffEmpty);
 
+
+        //freeing allocated memory
         for(size_t i = 0; i < filenum; i++)
         {
             munmap(filetext[i], length[i]);
@@ -409,8 +417,6 @@ int main(int argc, char *argv[])
         free(filetext);
         free(length);
         free(frags);
-
-        //start writing the encoded fragments into stdout recursively, looking for the fragment with no prev address as the first one
 
 
     }
@@ -487,5 +493,16 @@ int main(int argc, char *argv[])
 
     }
     
-    
 }
+
+/* references 
+
+https://www.geeksforgeeks.org/getopt-function-in-c-to-parse-command-line-arguments/
+
+https://www.geeksforgeeks.org/thread-functions-in-c-c/
+
+https://linux.die.net/man/3/pthread_cond_broadcast
+
+https://loiacono.faculty.polimi.it/uploads/Teaching/CP/CP_04_Pthread_CondVar.pdf
+
+*/
